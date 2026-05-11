@@ -1,1 +1,758 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Advent Cut-Out Studio</title><style>body{margin:0;background:#151518;color:#f4efe6;font-family:system-ui,sans-serif;overflow:hidden}.app{height:100vh;display:grid;grid-template-columns:240px 1fr;grid-template-rows:auto 1fr auto}.top{grid-column:1/3;background:#222228;border-bottom:2px solid #3b3b44;padding:12px 16px;display:flex;justify-content:space-between;align-items:center}h1{margin:0;color:#f4efe6;font-size:22px}.sub{color:#aaa39a;font-size:12px}.side{background:#222228;border-right:2px solid #3b3b44;padding:12px;overflow:auto}.stageWrap{padding:14px;background:radial-gradient(circle at top left,#3a211f,transparent 40%),#151518}.stage{width:100%;height:100%;background:#f0ede6;border:4px solid #222;border-radius:14px;touch-action:none;cursor:grab}.timeline{grid-column:2/3;background:#222228;border-top:2px solid #3b3b44;padding:10px;display:flex;gap:8px;overflow:auto;align-items:center}.btn{background:#e85d3a;color:white;border:0;border-radius:9px;padding:8px 12px;font-weight:800;cursor:pointer}.btn.dark{background:#2a2a2a;border:1px solid #555}.papers{display:grid;grid-template-columns:1fr 1fr;gap:8px}.paper,.cut{min-height:62px;border-radius:12px;border:2px solid transparent;display:flex;align-items:flex-end;padding:6px;color:white;font-weight:800;text-shadow:0 1px 3px #000;cursor:pointer}.paper:hover,.cut:hover{border-color:#e85d3a}.cut{background:#333;align-items:center;justify-content:center;padding:4px}.cut canvas{max-width:100%;max-height:70px}.hint{font-size:12px;color:#aaa39a;line-height:1.35}.frame{height:54px;width:86px;flex:0 0 auto;border-radius:8px;overflow:hidden;background:#333;position:relative}.frame img{width:100%;height:100%;object-fit:cover}.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.86);z-index:10;align-items:center;justify-content:center;flex-direction:column;gap:10px}.modal.show{display:flex}#cutCanvas{max-width:90vw;max-height:65vh;border-radius:12px;background:white;touch-action:none}.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#111;border:1px solid #666;border-radius:999px;padding:10px 16px;opacity:0;transition:.2s}.toast.show{opacity:1}@media(max-width:700px){body{overflow:auto}.app{height:auto;min-height:100vh;display:flex;flex-direction:column}.side{border-right:0;border-bottom:2px solid #3b3b44}.stageWrap{height:55vh}.timeline{grid-column:auto;min-height:80px}}</style></head><body><div class="app"><header class="top"><div><h1>Advent Cut-Out Studio</h1><div class="sub">A tiny handmade stop-motion table for paper scraps, weird ideas, and GIF miracles.</div></div><div><button class="btn" onclick="captureFrame()">Capture</button> <button class="btn dark" onclick="exportGIF()">Export GIF</button> <button class="btn dark" onclick="clearStage()">Clear Stage</button></div></header><aside class="side"><p class="hint">Choose paper, draw around a shape, cut it out, then tap the cutout to place it on the stage.</p><h3>Papers</h3><div id="papers" class="papers"></div><h3>Cutout Bin</h3><div id="bin" class="papers"></div></aside><main class="stageWrap"><canvas id="stage" class="stage"></canvas></main><div id="timeline" class="timeline"><span class="hint">Capture frames to build your animation →</span></div></div><div id="modal" class="modal"><strong>Draw around the shape you want to cut out</strong><canvas id="cutCanvas"></canvas><div><button class="btn" onclick="finishCut()">Cut Shape</button> <button class="btn dark" onclick="closeCut()">Cancel</button> <button class="btn dark" onclick="openCut(currentSource)">Clear</button></div></div><div id="toast" class="toast"></div><script>const papers=[['Cranberry','#c83349'],['Gumdrop','#e85d3a'],['Candle','#f0c93a'],['Evergreen','#2f9d57'],['Midnight','#24456f'],['Plum','#7b3fb4'],['Sugar','#f4efe6'],['Coal','#2a2a2a'],['Gingerbread','#9a6538'],['Ribbon','#e84a8a'],['Tealight','#3ac4b8'],['Gold','#d8a926']];let bin=[],items=[],frames=[],drag=null,dx=0,dy=0,currentSource=null,path=[],drawing=false;const stage=document.getElementById('stage'),ctx=stage.getContext('2d'),cut=document.getElementById('cutCanvas'),cctx=cut.getContext('2d');function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t.t);t.t=setTimeout(()=>t.classList.remove('show'),1600)}function resize(){const r=stage.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);stage.width=Math.max(320,r.width*d);stage.height=Math.max(260,r.height*d);render()}addEventListener('resize',resize);setTimeout(resize,50);function renderPapers(){papers.forEach(p=>{let b=document.createElement('button');b.className='paper';b.style.background=p[1];b.innerHTML='<span>'+p[0]+'</span>';b.onclick=()=>openCut({type:'paper',color:p[1]});document.getElementById('papers').appendChild(b)})}function source(ctx,w,h,s){ctx.clearRect(0,0,w,h);ctx.fillStyle=s.color;ctx.fillRect(0,0,w,h);ctx.globalAlpha=.08;for(let i=0;i<240;i++){ctx.fillStyle=Math.random()>.5?'#fff':'#000';ctx.fillRect(Math.random()*w,Math.random()*h,Math.random()*3+1,Math.random()*3+1)}ctx.globalAlpha=1}function openCut(s){currentSource=s;path=[];cut.width=520;cut.height=420;source(cctx,cut.width,cut.height,s);document.getElementById('modal').classList.add('show')}function closeCut(){document.getElementById('modal').classList.remove('show');path=[]}function pt(e,can){const r=can.getBoundingClientRect();return{x:(e.clientX-r.left)*(can.width/r.width),y:(e.clientY-r.top)*(can.height/r.height)}}cut.onpointerdown=e=>{path=[pt(e,cut)];drawing=true;cut.setPointerCapture(e.pointerId)};cut.onpointermove=e=>{if(!drawing)return;let p=pt(e,cut),q=path[path.length-1];path.push(p);cctx.strokeStyle='white';cctx.lineWidth=3;cctx.setLineDash([6,5]);cctx.beginPath();cctx.moveTo(q.x,q.y);cctx.lineTo(p.x,p.y);cctx.stroke();cctx.setLineDash([])};cut.onpointerup=()=>drawing=false;function finishCut(){if(path.length<10){toast('Draw a bigger loop.');return}let minX=9999,minY=9999,maxX=0,maxY=0;path.forEach(p=>{minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y)});minX=Math.max(0,Math.floor(minX));minY=Math.max(0,Math.floor(minY));maxX=Math.min(cut.width,Math.ceil(maxX));maxY=Math.min(cut.height,Math.ceil(maxY));let w=maxX-minX,h=maxY-minY;if(w<8||h<8){toast('Too tiny.');return}let src=document.createElement('canvas');src.width=cut.width;src.height=cut.height;source(src.getContext('2d'),src.width,src.height,currentSource);let out=document.createElement('canvas');out.width=w;out.height=h;let o=out.getContext('2d');o.save();o.beginPath();o.moveTo(path[0].x-minX,path[0].y-minY);path.forEach(p=>o.lineTo(p.x-minX,p.y-minY));o.closePath();o.clip();o.drawImage(src,-minX,-minY);o.restore();bin.push({canvas:out,w,h});renderBin();closeCut();toast('Cutout added.')}function renderBin(){let b=document.getElementById('bin');b.innerHTML='';bin.forEach((it,i)=>{let d=document.createElement('div');d.className='cut';let th=document.createElement('canvas');th.width=100;th.height=70;let tc=th.getContext('2d'),s=Math.min(100/it.w,70/it.h,1);tc.drawImage(it.canvas,(100-it.w*s)/2,(70-it.h*s)/2,it.w*s,it.h*s);d.appendChild(th);d.onclick=()=>addItem(it);b.appendChild(d)})}function addItem(it){let s=Math.min(160/it.w,160/it.h,1),w=it.w*s,h=it.h*s;items.push({canvas:it.canvas,x:stage.width/2-w/2,y:stage.height/2-h/2,w,h});render();toast('Placed on stage.')}function render(){ctx.fillStyle='#f0ede6';ctx.fillRect(0,0,stage.width,stage.height);ctx.fillStyle='#ddd8cd';for(let x=28;x<stage.width;x+=42)for(let y=28;y<stage.height;y+=42)ctx.fillRect(x,y,3,3);items.forEach(it=>{ctx.drawImage(it.canvas,it.x,it.y,it.w,it.h);if(it===drag){ctx.strokeStyle='#e85d3a';ctx.lineWidth=3;ctx.setLineDash([8,5]);ctx.strokeRect(it.x-2,it.y-2,it.w+4,it.h+4);ctx.setLineDash([])}})}stage.onpointerdown=e=>{let p=pt(e,stage);for(let i=items.length-1;i>=0;i--){let it=items[i];if(p.x>=it.x&&p.x<=it.x+it.w&&p.y>=it.y&&p.y<=it.y+it.h){drag=it;dx=p.x-it.x;dy=p.y-it.y;items.splice(i,1);items.push(it);stage.setPointerCapture(e.pointerId);render();return}}};stage.onpointermove=e=>{if(!drag)return;let p=pt(e,stage);drag.x=p.x-dx;drag.y=p.y-dy;render()};stage.onpointerup=()=>{drag=null;render()};stage.ondblclick=e=>{let p=pt(e,stage);for(let i=items.length-1;i>=0;i--){let it=items[i];if(p.x>=it.x&&p.x<=it.x+it.w&&p.y>=it.y&&p.y<=it.y+it.h){items.splice(i,1);render();toast('Removed.');return}}};function captureFrame(){if(!items.length&&!frames.length){toast('Add something first.');return}frames.push(stage.toDataURL('image/png'));renderTimeline();toast('Frame '+frames.length+' captured.')}function renderTimeline(){let t=document.getElementById('timeline');t.innerHTML='';frames.forEach((f,i)=>{let d=document.createElement('div');d.className='frame';d.innerHTML='<img src="'+f+'"><b style="position:absolute;right:4px;bottom:2px;color:white;text-shadow:0 1px 2px #000">'+(i+1)+'</b>';d.ondblclick=()=>{frames.splice(i,1);renderTimeline()};t.appendChild(d)});if(!frames.length)t.innerHTML='<span class="hint">Capture frames to build your animation →</span>'}function clearStage(){items=[];render();toast('Stage cleared.')}function exportGIF(){if(!frames.length){toast('Capture frames first.');return}let a=document.createElement('a');a.href=frames[frames.length-1];a.download='advent-frame.png';a.click();toast('Exported latest frame as PNG. GIF encoder returns next.')}renderPapers();renderBin();renderTimeline();</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advent Cut-Out Studio</title>
+  <style>
+    body {
+      margin: 0;
+      background: #151518;
+      color: #f4efe6;
+      font-family: system-ui, sans-serif;
+      overflow: hidden;
+    }
+
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .top {
+      grid-column: 1 / 3;
+      background: #222228;
+      border-bottom: 2px solid #3b3b44;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    h1 {
+      margin: 0;
+      color: #f4efe6;
+      font-size: 22px;
+    }
+
+    .sub {
+      color: #aaa39a;
+      font-size: 12px;
+    }
+
+    .side {
+      background: #222228;
+      border-right: 2px solid #3b3b44;
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .stageWrap {
+      padding: 14px;
+      background: radial-gradient(circle at top left, #3a211f, transparent 40%), #151518;
+    }
+
+    .stage {
+      width: 100%;
+      height: 100%;
+      background: #f0ede6;
+      border: 4px solid #222;
+      border-radius: 14px;
+      touch-action: none;
+      cursor: grab;
+    }
+
+    .timeline {
+      grid-column: 2 / 3;
+      background: #222228;
+      border-top: 2px solid #3b3b44;
+      padding: 10px;
+      display: flex;
+      gap: 8px;
+      overflow: auto;
+      align-items: center;
+    }
+
+    .btn {
+      background: #e85d3a;
+      color: white;
+      border: 0;
+      border-radius: 9px;
+      padding: 8px 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .btn.dark {
+      background: #2a2a2a;
+      border: 1px solid #555;
+    }
+
+    .btn:disabled {
+      cursor: not-allowed;
+      filter: grayscale(1);
+      opacity: .55;
+    }
+
+    .papers {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .paper,
+    .cut {
+      min-height: 62px;
+      border-radius: 12px;
+      border: 2px solid transparent;
+      display: flex;
+      align-items: flex-end;
+      padding: 6px;
+      color: white;
+      font-weight: 800;
+      text-shadow: 0 1px 3px #000;
+      cursor: pointer;
+    }
+
+    .paper:hover,
+    .cut:hover {
+      border-color: #e85d3a;
+    }
+
+    .cut {
+      background: #333;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+    }
+
+    .cut canvas {
+      max-width: 100%;
+      max-height: 70px;
+    }
+
+    .museum {
+      margin: 10px 0 16px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .museumPreview {
+      min-height: 96px;
+      border: 1px dashed #555;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: #18181d;
+      color: #aaa39a;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .museumPreview img {
+      width: 100%;
+      max-height: 180px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .museumActions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #aaa39a;
+      line-height: 1.35;
+    }
+
+    .frame {
+      height: 54px;
+      width: 86px;
+      flex: 0 0 auto;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #333;
+      position: relative;
+    }
+
+    .frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .86);
+      z-index: 10;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .modal.show {
+      display: flex;
+    }
+
+    #cutCanvas {
+      max-width: 90vw;
+      max-height: 65vh;
+      border-radius: 12px;
+      background: white;
+      touch-action: none;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 20px;
+      transform: translateX(-50%);
+      background: #111;
+      border: 1px solid #666;
+      border-radius: 999px;
+      padding: 10px 16px;
+      opacity: 0;
+      transition: .2s;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+
+    @media (max-width: 700px) {
+      body {
+        overflow: auto;
+      }
+
+      .app {
+        height: auto;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .side {
+        border-right: 0;
+        border-bottom: 2px solid #3b3b44;
+      }
+
+      .stageWrap {
+        height: 55vh;
+      }
+
+      .timeline {
+        grid-column: auto;
+        min-height: 80px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div>
+        <h1>Advent Cut-Out Studio</h1>
+        <div class="sub">A tiny handmade stop-motion table for paper scraps, weird ideas, and GIF miracles.</div>
+      </div>
+      <div>
+        <button class="btn" onclick="captureFrame()">Capture</button>
+        <button class="btn dark" onclick="exportGIF()">Export GIF</button>
+        <button class="btn dark" onclick="clearStage()">Clear Stage</button>
+      </div>
+    </header>
+
+    <aside class="side">
+      <p class="hint">Choose paper, draw around a shape, cut it out, then tap the cutout to place it on the stage.</p>
+
+      <h3>Papers</h3>
+      <div id="papers" class="papers"></div>
+
+      <h3>Random MET Image</h3>
+      <div class="museum">
+        <p id="museumMeta" class="hint">Fetch a public-domain artwork from The Metropolitan Museum of Art, then cut it into your scene.</p>
+        <div id="museumPreview" class="museumPreview">No artwork loaded yet.</div>
+        <div class="museumActions">
+          <button id="museumLoad" class="btn" onclick="loadRandomMetArtwork()">Random MET Image</button>
+          <button id="museumCut" class="btn dark" onclick="cutMuseumArtwork()" disabled>Cut This Image</button>
+        </div>
+      </div>
+
+      <h3>Cutout Bin</h3>
+      <div id="bin" class="papers"></div>
+    </aside>
+
+    <main class="stageWrap">
+      <canvas id="stage" class="stage"></canvas>
+    </main>
+
+    <div id="timeline" class="timeline">
+      <span class="hint">Capture frames to build your animation →</span>
+    </div>
+  </div>
+
+  <div id="modal" class="modal">
+    <strong>Draw around the shape you want to cut out</strong>
+    <canvas id="cutCanvas"></canvas>
+    <div>
+      <button class="btn" onclick="finishCut()">Cut Shape</button>
+      <button class="btn dark" onclick="closeCut()">Cancel</button>
+      <button class="btn dark" onclick="openCut(currentSource)">Clear</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const papers = [
+      ['Cranberry', '#c83349'],
+      ['Gumdrop', '#e85d3a'],
+      ['Candle', '#f0c93a'],
+      ['Evergreen', '#2f9d57'],
+      ['Midnight', '#24456f'],
+      ['Plum', '#7b3fb4'],
+      ['Sugar', '#f4efe6'],
+      ['Coal', '#2a2a2a'],
+      ['Gingerbread', '#9a6538'],
+      ['Ribbon', '#e84a8a'],
+      ['Tealight', '#3ac4b8'],
+      ['Gold', '#d8a926']
+    ];
+    const MET_SEARCH_URL = 'https://collectionapi.metmuseum.org/public/collection/v1/search';
+    const MET_OBJECT_URL = 'https://collectionapi.metmuseum.org/public/collection/v1/objects/';
+    const MET_QUERIES = ['painting', 'drawing', 'print', 'textile', 'photograph', 'ornament'];
+
+    let bin = [];
+    let items = [];
+    let frames = [];
+    let drag = null;
+    let dx = 0;
+    let dy = 0;
+    let currentSource = null;
+    let path = [];
+    let drawing = false;
+    let museumSource = null;
+
+    const stage = document.getElementById('stage');
+    const ctx = stage.getContext('2d');
+    const cut = document.getElementById('cutCanvas');
+    const cctx = cut.getContext('2d');
+
+    function toast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(t.t);
+      t.t = setTimeout(() => t.classList.remove('show'), 1600);
+    }
+
+    function resize() {
+      const r = stage.getBoundingClientRect();
+      const d = Math.min(devicePixelRatio || 1, 2);
+      stage.width = Math.max(320, r.width * d);
+      stage.height = Math.max(260, r.height * d);
+      render();
+    }
+
+    addEventListener('resize', resize);
+    setTimeout(resize, 50);
+
+    function renderPapers() {
+      papers.forEach((p) => {
+        const b = document.createElement('button');
+        b.className = 'paper';
+        b.style.background = p[1];
+        b.innerHTML = '<span>' + p[0] + '</span>';
+        b.onclick = () => openCut({ type: 'paper', color: p[1] });
+        document.getElementById('papers').appendChild(b);
+      });
+    }
+
+    function drawImageSource(ctxToDraw, w, h, img) {
+      ctxToDraw.fillStyle = '#f0ede6';
+      ctxToDraw.fillRect(0, 0, w, h);
+      const scale = Math.min(w / img.naturalWidth, h / img.naturalHeight);
+      const dw = img.naturalWidth * scale;
+      const dh = img.naturalHeight * scale;
+      ctxToDraw.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    }
+
+    function source(ctxToDraw, w, h, s) {
+      ctxToDraw.clearRect(0, 0, w, h);
+
+      if (s && s.type === 'image') {
+        drawImageSource(ctxToDraw, w, h, s.image);
+        return;
+      }
+
+      ctxToDraw.fillStyle = s.color;
+      ctxToDraw.fillRect(0, 0, w, h);
+      ctxToDraw.globalAlpha = .08;
+      for (let i = 0; i < 240; i++) {
+        ctxToDraw.fillStyle = Math.random() > .5 ? '#fff' : '#000';
+        ctxToDraw.fillRect(Math.random() * w, Math.random() * h, Math.random() * 3 + 1, Math.random() * 3 + 1);
+      }
+      ctxToDraw.globalAlpha = 1;
+    }
+
+    function openCut(s) {
+      currentSource = s;
+      path = [];
+      cut.width = 520;
+      cut.height = 420;
+      source(cctx, cut.width, cut.height, s);
+      document.getElementById('modal').classList.add('show');
+    }
+
+    function closeCut() {
+      document.getElementById('modal').classList.remove('show');
+      path = [];
+    }
+
+    function pt(e, can) {
+      const r = can.getBoundingClientRect();
+      return {
+        x: (e.clientX - r.left) * (can.width / r.width),
+        y: (e.clientY - r.top) * (can.height / r.height)
+      };
+    }
+
+    cut.onpointerdown = (e) => {
+      path = [pt(e, cut)];
+      drawing = true;
+      cut.setPointerCapture(e.pointerId);
+    };
+
+    cut.onpointermove = (e) => {
+      if (!drawing) return;
+      const p = pt(e, cut);
+      const q = path[path.length - 1];
+      path.push(p);
+      cctx.strokeStyle = 'white';
+      cctx.lineWidth = 3;
+      cctx.setLineDash([6, 5]);
+      cctx.beginPath();
+      cctx.moveTo(q.x, q.y);
+      cctx.lineTo(p.x, p.y);
+      cctx.stroke();
+      cctx.setLineDash([]);
+    };
+
+    cut.onpointerup = () => {
+      drawing = false;
+    };
+
+    function finishCut() {
+      if (path.length < 10) {
+        toast('Draw a bigger loop.');
+        return;
+      }
+
+      let minX = 9999;
+      let minY = 9999;
+      let maxX = 0;
+      let maxY = 0;
+      path.forEach((p) => {
+        minX = Math.min(minX, p.x);
+        minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x);
+        maxY = Math.max(maxY, p.y);
+      });
+      minX = Math.max(0, Math.floor(minX));
+      minY = Math.max(0, Math.floor(minY));
+      maxX = Math.min(cut.width, Math.ceil(maxX));
+      maxY = Math.min(cut.height, Math.ceil(maxY));
+
+      const w = maxX - minX;
+      const h = maxY - minY;
+      if (w < 8 || h < 8) {
+        toast('Too tiny.');
+        return;
+      }
+
+      const src = document.createElement('canvas');
+      src.width = cut.width;
+      src.height = cut.height;
+      source(src.getContext('2d'), src.width, src.height, currentSource);
+
+      const out = document.createElement('canvas');
+      out.width = w;
+      out.height = h;
+      const o = out.getContext('2d');
+      o.save();
+      o.beginPath();
+      o.moveTo(path[0].x - minX, path[0].y - minY);
+      path.forEach((p) => o.lineTo(p.x - minX, p.y - minY));
+      o.closePath();
+      o.clip();
+      o.drawImage(src, -minX, -minY);
+      o.restore();
+
+      bin.push({ canvas: out, w, h });
+      renderBin();
+      closeCut();
+      toast('Cutout added.');
+    }
+
+    function renderBin() {
+      const b = document.getElementById('bin');
+      b.innerHTML = '';
+      bin.forEach((it) => {
+        const d = document.createElement('div');
+        d.className = 'cut';
+        const th = document.createElement('canvas');
+        th.width = 100;
+        th.height = 70;
+        const tc = th.getContext('2d');
+        const s = Math.min(100 / it.w, 70 / it.h, 1);
+        tc.drawImage(it.canvas, (100 - it.w * s) / 2, (70 - it.h * s) / 2, it.w * s, it.h * s);
+        d.appendChild(th);
+        d.onclick = () => addItem(it);
+        b.appendChild(d);
+      });
+    }
+
+    function addItem(it) {
+      const s = Math.min(160 / it.w, 160 / it.h, 1);
+      const w = it.w * s;
+      const h = it.h * s;
+      items.push({ canvas: it.canvas, x: stage.width / 2 - w / 2, y: stage.height / 2 - h / 2, w, h });
+      render();
+      toast('Placed on stage.');
+    }
+
+    function render() {
+      ctx.fillStyle = '#f0ede6';
+      ctx.fillRect(0, 0, stage.width, stage.height);
+      ctx.fillStyle = '#ddd8cd';
+      for (let x = 28; x < stage.width; x += 42) {
+        for (let y = 28; y < stage.height; y += 42) ctx.fillRect(x, y, 3, 3);
+      }
+      items.forEach((it) => {
+        ctx.drawImage(it.canvas, it.x, it.y, it.w, it.h);
+        if (it === drag) {
+          ctx.strokeStyle = '#e85d3a';
+          ctx.lineWidth = 3;
+          ctx.setLineDash([8, 5]);
+          ctx.strokeRect(it.x - 2, it.y - 2, it.w + 4, it.h + 4);
+          ctx.setLineDash([]);
+        }
+      });
+    }
+
+    stage.onpointerdown = (e) => {
+      const p = pt(e, stage);
+      for (let i = items.length - 1; i >= 0; i--) {
+        const it = items[i];
+        if (p.x >= it.x && p.x <= it.x + it.w && p.y >= it.y && p.y <= it.y + it.h) {
+          drag = it;
+          dx = p.x - it.x;
+          dy = p.y - it.y;
+          items.splice(i, 1);
+          items.push(it);
+          stage.setPointerCapture(e.pointerId);
+          render();
+          return;
+        }
+      }
+    };
+
+    stage.onpointermove = (e) => {
+      if (!drag) return;
+      const p = pt(e, stage);
+      drag.x = p.x - dx;
+      drag.y = p.y - dy;
+      render();
+    };
+
+    stage.onpointerup = () => {
+      drag = null;
+      render();
+    };
+
+    stage.ondblclick = (e) => {
+      const p = pt(e, stage);
+      for (let i = items.length - 1; i >= 0; i--) {
+        const it = items[i];
+        if (p.x >= it.x && p.x <= it.x + it.w && p.y >= it.y && p.y <= it.y + it.h) {
+          items.splice(i, 1);
+          render();
+          toast('Removed.');
+          return;
+        }
+      }
+    };
+
+    function captureFrame() {
+      if (!items.length && !frames.length) {
+        toast('Add something first.');
+        return;
+      }
+      frames.push(stage.toDataURL('image/png'));
+      renderTimeline();
+      toast('Frame ' + frames.length + ' captured.');
+    }
+
+    function renderTimeline() {
+      const t = document.getElementById('timeline');
+      t.innerHTML = '';
+      frames.forEach((f, i) => {
+        const d = document.createElement('div');
+        d.className = 'frame';
+        d.innerHTML = '<img src="' + f + '"><b style="position:absolute;right:4px;bottom:2px;color:white;text-shadow:0 1px 2px #000">' + (i + 1) + '</b>';
+        d.ondblclick = () => {
+          frames.splice(i, 1);
+          renderTimeline();
+        };
+        t.appendChild(d);
+      });
+      if (!frames.length) t.innerHTML = '<span class="hint">Capture frames to build your animation →</span>';
+    }
+
+    function clearStage() {
+      items = [];
+      render();
+      toast('Stage cleared.');
+    }
+
+    function exportGIF() {
+      if (!frames.length) {
+        toast('Capture frames first.');
+        return;
+      }
+      const a = document.createElement('a');
+      a.href = frames[frames.length - 1];
+      a.download = 'advent-frame.png';
+      a.click();
+      toast('Exported latest frame as PNG. GIF encoder returns next.');
+    }
+
+    async function fetchRandomMetArtwork() {
+      const randomQuery = MET_QUERIES[Math.floor(Math.random() * MET_QUERIES.length)];
+      const searchUrl = `${MET_SEARCH_URL}?hasImages=true&isPublicDomain=true&q=${encodeURIComponent(randomQuery)}`;
+      const searchResponse = await fetch(searchUrl);
+      if (!searchResponse.ok) throw new Error('MET search failed.');
+
+      const searchData = await searchResponse.json();
+      const objectIds = searchData.objectIDs || [];
+      if (!objectIds.length) throw new Error('No MET artworks found.');
+
+      for (let attempt = 0; attempt < 12; attempt++) {
+        const objectId = objectIds[Math.floor(Math.random() * objectIds.length)];
+        const objectResponse = await fetch(MET_OBJECT_URL + objectId);
+        if (!objectResponse.ok) continue;
+
+        const artwork = await objectResponse.json();
+        const imageUrl = artwork.primaryImageSmall || artwork.primaryImage;
+        if (artwork.isPublicDomain && imageUrl) {
+          return {
+            title: artwork.title || 'Untitled artwork',
+            artist: artwork.artistDisplayName || 'Unknown artist',
+            imageUrl,
+            objectUrl: artwork.objectURL || `https://www.metmuseum.org/art/collection/search/${artwork.objectID}`
+          };
+        }
+      }
+
+      throw new Error('No usable MET image found.');
+    }
+
+    function ensureCanvasSafeImage(img) {
+      const test = document.createElement('canvas');
+      test.width = 1;
+      test.height = 1;
+      test.getContext('2d').drawImage(img, 0, 0, 1, 1);
+      test.toDataURL('image/png');
+    }
+
+    function loadArtworkImage(url) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          try {
+            ensureCanvasSafeImage(img);
+            resolve(img);
+          } catch (error) {
+            reject(new Error('Artwork image cannot be used as a canvas cutout.'));
+          }
+        };
+        img.onerror = () => reject(new Error('Artwork image failed to load.'));
+        img.src = url;
+      });
+    }
+
+    function renderMuseumMetadata(meta, artwork) {
+      meta.textContent = '';
+
+      const title = document.createElement('strong');
+      title.textContent = artwork.title;
+      const artist = document.createElement('span');
+      artist.textContent = artwork.artist;
+      const link = document.createElement('a');
+      link.href = artwork.objectUrl;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.style.color = '#f0c93a';
+      link.textContent = 'View at The Met';
+
+      meta.append(title, document.createElement('br'), artist, document.createElement('br'), link);
+    }
+
+    async function loadRandomMetArtwork() {
+      const loadButton = document.getElementById('museumLoad');
+      const cutButton = document.getElementById('museumCut');
+      const meta = document.getElementById('museumMeta');
+      const preview = document.getElementById('museumPreview');
+
+      loadButton.disabled = true;
+      cutButton.disabled = true;
+      meta.textContent = 'Fetching a random public-domain image from The Metropolitan Museum of Art…';
+      preview.textContent = 'Loading artwork…';
+
+      try {
+        const artwork = await fetchRandomMetArtwork();
+        const image = await loadArtworkImage(artwork.imageUrl);
+        museumSource = { type: 'image', image, title: artwork.title, objectUrl: artwork.objectUrl };
+
+        const previewImage = document.createElement('img');
+        previewImage.src = artwork.imageUrl;
+        previewImage.alt = artwork.title;
+        preview.innerHTML = '';
+        preview.appendChild(previewImage);
+        renderMuseumMetadata(meta, artwork);
+        cutButton.disabled = false;
+        toast('MET artwork ready to cut.');
+      } catch (error) {
+        console.error('Error displaying random MET artwork:', error);
+        museumSource = null;
+        preview.textContent = 'Could not load artwork. Try again.';
+        meta.textContent = 'The MET image could not be loaded. Try another random image.';
+        toast('MET artwork failed to load.');
+      } finally {
+        loadButton.disabled = false;
+      }
+    }
+
+    function cutMuseumArtwork() {
+      if (!museumSource) {
+        toast('Load a MET image first.');
+        return;
+      }
+      openCut(museumSource);
+    }
+
+    renderPapers();
+    renderBin();
+    renderTimeline();
+  </script>
+</body>
+</html>
