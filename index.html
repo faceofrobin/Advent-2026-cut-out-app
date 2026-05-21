@@ -48,9 +48,14 @@
       overflow: auto;
     }
 
+    h3 {
+      margin: 18px 0 9px;
+    }
+
     .stageWrap {
       padding: 14px;
       background: radial-gradient(circle at top left, #3a211f, transparent 40%), #151518;
+      min-height: 0;
     }
 
     .stage {
@@ -61,6 +66,7 @@
       border-radius: 14px;
       touch-action: none;
       cursor: grab;
+      user-select: none;
     }
 
     .timeline {
@@ -82,6 +88,7 @@
       padding: 8px 12px;
       font-weight: 800;
       cursor: pointer;
+      min-height: 38px;
     }
 
     .btn.dark {
@@ -132,37 +139,101 @@
       max-height: 70px;
     }
 
-    .museum {
+    .commons,
+    .stageTools {
       margin: 10px 0 16px;
       display: grid;
       gap: 8px;
     }
 
-    .museumPreview {
-      min-height: 96px;
-      border: 1px dashed #555;
-      border-radius: 12px;
+    .toolRow,
+    .commonsSearch {
       display: flex;
       align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      background: #18181d;
-      color: #aaa39a;
-      font-size: 12px;
-      text-align: center;
-    }
-
-    .museumPreview img {
-      width: 100%;
-      max-height: 180px;
-      object-fit: cover;
-      display: block;
-    }
-
-    .museumActions {
-      display: flex;
       gap: 8px;
       flex-wrap: wrap;
+    }
+
+    .toolRow label {
+      min-height: 38px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .field,
+    .upload {
+      min-height: 38px;
+      box-sizing: border-box;
+      border: 1px solid #555;
+      border-radius: 8px;
+      background: #18181d;
+      color: #f4efe6;
+      padding: 8px;
+    }
+
+    .commonsSearch .field {
+      flex: 1 1 110px;
+      min-width: 0;
+    }
+
+    .swatch {
+      width: 42px;
+      height: 38px;
+      border: 1px solid #555;
+      border-radius: 8px;
+      background: #18181d;
+      padding: 3px;
+      cursor: pointer;
+    }
+
+    .upload {
+      width: 100%;
+      padding: 6px;
+    }
+
+    .commonsGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .commonsResult {
+      min-height: 102px;
+      border: 1px dashed #555;
+      border-radius: 8px;
+      background: #18181d;
+      color: #f4efe6;
+      cursor: pointer;
+      display: grid;
+      grid-template-rows: 78px auto;
+      overflow: hidden;
+      padding: 0;
+      text-align: left;
+    }
+
+    .commonsResult img {
+      width: 100%;
+      height: 78px;
+      background: #111;
+      object-fit: contain;
+    }
+
+    .commonsResult span {
+      padding: 5px 6px 6px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+
+    .emptyGrid {
+      grid-column: 1 / -1;
+      border: 1px dashed #555;
+      border-radius: 8px;
+      color: #aaa39a;
+      font-size: 12px;
+      padding: 12px;
     }
 
     .hint {
@@ -207,8 +278,23 @@
       max-width: 90vw;
       max-height: 65vh;
       border-radius: 12px;
-      background: white;
+      background-color: white;
+      background-image:
+        linear-gradient(45deg, #ddd 25%, transparent 25%),
+        linear-gradient(-45deg, #ddd 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #ddd 75%),
+        linear-gradient(-45deg, transparent 75%, #ddd 75%);
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+      background-size: 20px 20px;
       touch-action: none;
+    }
+
+    .modalControls {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 0 12px;
     }
 
     .toast {
@@ -247,11 +333,18 @@
 
       .stageWrap {
         height: 55vh;
+        padding: 10px;
       }
 
       .timeline {
         grid-column: auto;
         min-height: 80px;
+      }
+
+      .btn,
+      .field,
+      .toolRow label {
+        min-height: 44px;
       }
     }
   </style>
@@ -276,12 +369,25 @@
       <h3>Papers</h3>
       <div id="papers" class="papers"></div>
 
-      <h3>Random Wikimedia Image</h3>
-      <div class="museum">
-        <p id="commonsMeta" class="hint">Fetch a featured picture from Wikimedia Commons and add it directly to the cutout bin.</p>
-        <div id="commonsPreview" class="museumPreview">No Wikimedia image loaded yet.</div>
-        <div class="museumActions">
-          <button id="commonsLoad" class="btn" onclick="addRandomWikimediaImageToBin()">Add Random Wikimedia Image</button>
+      <h3>Stage</h3>
+      <div class="stageTools">
+        <div class="toolRow">
+          <label class="hint">Background <input id="stageColor" class="swatch" type="color" value="#f0ede6"></label>
+          <label class="hint"><input id="gridToggle" type="checkbox" checked> Grid dots</label>
+        </div>
+        <input id="stageImage" class="upload" type="file" accept="image/*" aria-label="Upload stage background image">
+        <button class="btn dark" onclick="clearBackgroundImage()">Remove Background Image</button>
+      </div>
+
+      <h3>Wikimedia Commons</h3>
+      <div class="commons">
+        <p id="commonsMeta" class="hint">Search open media, then cut around a picture or keep the full image.</p>
+        <div class="commonsSearch">
+          <input id="commonsQuery" class="field" type="search" placeholder="paper moon" aria-label="Search Wikimedia Commons">
+          <button id="commonsSearch" class="btn" onclick="searchWikimedia()">Search</button>
+        </div>
+        <div id="commonsResults" class="commonsGrid">
+          <div class="emptyGrid">Search results become cutout sources here.</div>
         </div>
       </div>
 
@@ -301,8 +407,9 @@
   <div id="modal" class="modal">
     <strong>Draw around the shape you want to cut out</strong>
     <canvas id="cutCanvas"></canvas>
-    <div>
+    <div class="modalControls">
       <button class="btn" onclick="finishCut()">Cut Shape</button>
+      <button class="btn" onclick="useFullImage()">Use Full Image</button>
       <button class="btn dark" onclick="closeCut()">Cancel</button>
       <button class="btn dark" onclick="openCut(currentSource)">Clear</button>
     </div>
@@ -325,18 +432,21 @@
       ['Tealight', '#3ac4b8'],
       ['Gold', '#d8a926']
     ];
-    const COMMONS_RANDOM_URL = 'https://randomincategory.toolforge.org/Featured_pictures_on_Wikimedia_Commons?server=commons.wikimedia.org&type=file&debug=1';
     const COMMONS_API_URL = 'https://commons.wikimedia.org/w/api.php';
+    const HANDLE_SIZE = 11;
+    const TOUCH_HANDLE_SIZE = 19;
+    const MIN_SCALE = .08;
 
     let bin = [];
     let items = [];
     let frames = [];
-    let drag = null;
-    let dx = 0;
-    let dy = 0;
+    let interaction = null;
     let currentSource = null;
     let path = [];
     let drawing = false;
+    let stageBackgroundColor = '#f0ede6';
+    let stageBackgroundImage = null;
+    let showGrid = true;
 
     const stage = document.getElementById('stage');
     const ctx = stage.getContext('2d');
@@ -374,8 +484,6 @@
     }
 
     function drawImageSource(ctxToDraw, w, h, img) {
-      ctxToDraw.fillStyle = '#f0ede6';
-      ctxToDraw.fillRect(0, 0, w, h);
       const scale = Math.min(w / img.naturalWidth, h / img.naturalHeight);
       const dw = img.naturalWidth * scale;
       const dh = img.naturalHeight * scale;
@@ -423,6 +531,7 @@
     }
 
     cut.onpointerdown = (e) => {
+      e.preventDefault();
       path = [pt(e, cut)];
       drawing = true;
       cut.setPointerCapture(e.pointerId);
@@ -430,6 +539,7 @@
 
     cut.onpointermove = (e) => {
       if (!drawing) return;
+      e.preventDefault();
       const p = pt(e, cut);
       const q = path[path.length - 1];
       path.push(p);
@@ -446,6 +556,45 @@
     cut.onpointerup = () => {
       drawing = false;
     };
+
+    function trimTransparentEdges(canvas) {
+      const trimCtx = canvas.getContext('2d', { willReadFrequently: true });
+      const pixels = trimCtx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let minX = canvas.width;
+      let minY = canvas.height;
+      let maxX = -1;
+      let maxY = -1;
+
+      for (let y = 0; y < canvas.height; y++) {
+        for (let x = 0; x < canvas.width; x++) {
+          if (pixels[(y * canvas.width + x) * 4 + 3] > 0) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          }
+        }
+      }
+
+      if (maxX < minX || maxY < minY) return null;
+
+      const out = document.createElement('canvas');
+      out.width = maxX - minX + 1;
+      out.height = maxY - minY + 1;
+      out.getContext('2d').drawImage(canvas, minX, minY, out.width, out.height, 0, 0, out.width, out.height);
+      return out;
+    }
+
+    function addCanvasToBin(canvas) {
+      const trimmed = trimTransparentEdges(canvas);
+      if (!trimmed) {
+        toast('Nothing visible to keep.');
+        return false;
+      }
+      bin.push({ canvas: trimmed, w: trimmed.width, h: trimmed.height });
+      renderBin();
+      return true;
+    }
 
     function finishCut() {
       if (path.length < 10) {
@@ -493,10 +642,22 @@
       o.drawImage(src, -minX, -minY);
       o.restore();
 
-      bin.push({ canvas: out, w, h });
-      renderBin();
-      closeCut();
-      toast('Cutout added.');
+      if (addCanvasToBin(out)) {
+        closeCut();
+        toast('Cutout added.');
+      }
+    }
+
+    function useFullImage() {
+      const out = document.createElement('canvas');
+      out.width = cut.width;
+      out.height = cut.height;
+      source(out.getContext('2d'), out.width, out.height, currentSource);
+
+      if (addCanvasToBin(out)) {
+        closeCut();
+        toast('Full source added.');
+      }
     }
 
     function renderBin() {
@@ -521,38 +682,175 @@
       const s = Math.min(160 / it.w, 160 / it.h, 1);
       const w = it.w * s;
       const h = it.h * s;
-      items.push({ canvas: it.canvas, x: stage.width / 2 - w / 2, y: stage.height / 2 - h / 2, w, h });
+      items.forEach((item) => item.selected = false);
+      items.push({
+        canvas: it.canvas,
+        x: stage.width / 2,
+        y: stage.height / 2,
+        w,
+        h,
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+        selected: true
+      });
       render();
       toast('Placed on stage.');
     }
 
-    function render() {
-      ctx.fillStyle = '#f0ede6';
-      ctx.fillRect(0, 0, stage.width, stage.height);
-      ctx.fillStyle = '#ddd8cd';
-      for (let x = 28; x < stage.width; x += 42) {
-        for (let y = 28; y < stage.height; y += 42) ctx.fillRect(x, y, 3, 3);
-      }
-      items.forEach((it) => {
-        ctx.drawImage(it.canvas, it.x, it.y, it.w, it.h);
-        if (it === drag) {
-          ctx.strokeStyle = '#e85d3a';
-          ctx.lineWidth = 3;
-          ctx.setLineDash([8, 5]);
-          ctx.strokeRect(it.x - 2, it.y - 2, it.w + 4, it.h + 4);
-          ctx.setLineDash([]);
+    function handleRadius(pointerType) {
+      const cssSize = pointerType === 'touch' ? TOUCH_HANDLE_SIZE : HANDLE_SIZE;
+      const stageScale = stage.width / Math.max(stage.getBoundingClientRect().width, 1);
+      return cssSize * stageScale;
+    }
+
+    function rotatePoint(x, y, angle) {
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      return { x: x * cos - y * sin, y: x * sin + y * cos };
+    }
+
+    function localToWorld(it, x, y) {
+      const scaled = rotatePoint(x * it.scaleX, y * it.scaleY, it.rotation);
+      return { x: it.x + scaled.x, y: it.y + scaled.y };
+    }
+
+    function worldToLocal(it, p) {
+      const rotated = rotatePoint(p.x - it.x, p.y - it.y, -it.rotation);
+      return { x: rotated.x / it.scaleX, y: rotated.y / it.scaleY };
+    }
+
+    function itemCorners(it) {
+      return [
+        { name: 'nw', x: -it.w / 2, y: -it.h / 2 },
+        { name: 'ne', x: it.w / 2, y: -it.h / 2 },
+        { name: 'se', x: it.w / 2, y: it.h / 2 },
+        { name: 'sw', x: -it.w / 2, y: it.h / 2 }
+      ];
+    }
+
+    function rotationHandle(it) {
+      const gap = Math.max(42, handleRadius('touch') * 2.4) / it.scaleY;
+      return localToWorld(it, 0, -it.h / 2 - gap);
+    }
+
+    function pointInItem(it, p) {
+      const local = worldToLocal(it, p);
+      return Math.abs(local.x) <= it.w / 2 && Math.abs(local.y) <= it.h / 2;
+    }
+
+    function nearestHandle(it, p, radius) {
+      const rotate = rotationHandle(it);
+      if (Math.hypot(p.x - rotate.x, p.y - rotate.y) <= radius * 1.35) return { type: 'rotate' };
+
+      for (const corner of itemCorners(it)) {
+        const world = localToWorld(it, corner.x, corner.y);
+        if (Math.hypot(p.x - world.x, p.y - world.y) <= radius * 1.35) {
+          return { type: 'scale', corner };
         }
+      }
+      return null;
+    }
+
+    function selectedItem() {
+      return items.slice().reverse().find((it) => it.selected);
+    }
+
+    function drawBackgroundImage() {
+      if (!stageBackgroundImage) return;
+      const scale = Math.max(stage.width / stageBackgroundImage.naturalWidth, stage.height / stageBackgroundImage.naturalHeight);
+      const w = stageBackgroundImage.naturalWidth * scale;
+      const h = stageBackgroundImage.naturalHeight * scale;
+      ctx.drawImage(stageBackgroundImage, (stage.width - w) / 2, (stage.height - h) / 2, w, h);
+    }
+
+    function render(showSelection = true) {
+      ctx.fillStyle = stageBackgroundColor;
+      ctx.fillRect(0, 0, stage.width, stage.height);
+      drawBackgroundImage();
+
+      if (showGrid) {
+        ctx.fillStyle = 'rgba(35, 35, 42, .18)';
+        for (let x = 28; x < stage.width; x += 42) {
+          for (let y = 28; y < stage.height; y += 42) ctx.fillRect(x, y, 3, 3);
+        }
+      }
+
+      items.forEach((it) => {
+        ctx.save();
+        ctx.translate(it.x, it.y);
+        ctx.rotate(it.rotation);
+        ctx.scale(it.scaleX, it.scaleY);
+        ctx.drawImage(it.canvas, -it.w / 2, -it.h / 2, it.w, it.h);
+        ctx.restore();
       });
+
+      if (showSelection) items.filter((it) => it.selected).forEach(drawSelection);
+    }
+
+    function drawHandle(p, radius, fill) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#18181d';
+      ctx.stroke();
+    }
+
+    function drawSelection(it) {
+      const corners = itemCorners(it).map((corner) => localToWorld(it, corner.x, corner.y));
+      const rotate = rotationHandle(it);
+      const top = localToWorld(it, 0, -it.h / 2);
+      const radius = handleRadius(matchMedia('(pointer: coarse)').matches ? 'touch' : 'mouse');
+
+      ctx.strokeStyle = '#e85d3a';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([8, 5]);
+      ctx.beginPath();
+      ctx.moveTo(corners[0].x, corners[0].y);
+      corners.slice(1).forEach((corner) => ctx.lineTo(corner.x, corner.y));
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(top.x, top.y);
+      ctx.lineTo(rotate.x, rotate.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      corners.forEach((corner) => drawHandle(corner, radius, '#f4efe6'));
+      drawHandle(rotate, radius * 1.12, '#f0c93a');
     }
 
     stage.onpointerdown = (e) => {
+      e.preventDefault();
       const p = pt(e, stage);
+      const active = selectedItem();
+      const hitHandle = active && nearestHandle(active, p, handleRadius(e.pointerType));
+
+      if (active && hitHandle) {
+        interaction = {
+          item: active,
+          pointerId: e.pointerId,
+          type: hitHandle.type,
+          corner: hitHandle.corner,
+          rotationOffset: active.rotation - Math.atan2(p.y - active.y, p.x - active.x)
+        };
+        stage.setPointerCapture(e.pointerId);
+        return;
+      }
+
       for (let i = items.length - 1; i >= 0; i--) {
         const it = items[i];
-        if (p.x >= it.x && p.x <= it.x + it.w && p.y >= it.y && p.y <= it.y + it.h) {
-          drag = it;
-          dx = p.x - it.x;
-          dy = p.y - it.y;
+        if (pointInItem(it, p)) {
+          items.forEach((item) => item.selected = item === it);
+          interaction = {
+            item: it,
+            pointerId: e.pointerId,
+            type: 'drag',
+            dx: p.x - it.x,
+            dy: p.y - it.y
+          };
           items.splice(i, 1);
           items.push(it);
           stage.setPointerCapture(e.pointerId);
@@ -560,26 +858,48 @@
           return;
         }
       }
+
+      items.forEach((item) => item.selected = false);
+      render();
     };
 
     stage.onpointermove = (e) => {
-      if (!drag) return;
+      if (!interaction || interaction.pointerId !== e.pointerId) return;
+      e.preventDefault();
       const p = pt(e, stage);
-      drag.x = p.x - dx;
-      drag.y = p.y - dy;
+      const it = interaction.item;
+
+      if (interaction.type === 'drag') {
+        it.x = p.x - interaction.dx;
+        it.y = p.y - interaction.dy;
+      }
+
+      if (interaction.type === 'rotate') {
+        it.rotation = Math.atan2(p.y - it.y, p.x - it.x) + interaction.rotationOffset;
+      }
+
+      if (interaction.type === 'scale') {
+        const local = rotatePoint(p.x - it.x, p.y - it.y, -it.rotation);
+        it.scaleX = Math.max(MIN_SCALE, Math.abs(local.x) / (it.w / 2));
+        it.scaleY = Math.max(MIN_SCALE, Math.abs(local.y) / (it.h / 2));
+      }
+
       render();
     };
 
-    stage.onpointerup = () => {
-      drag = null;
+    function endStageInteraction(e) {
+      if (interaction && (!e || interaction.pointerId === e.pointerId)) interaction = null;
       render();
-    };
+    }
+
+    stage.onpointerup = endStageInteraction;
+    stage.onpointercancel = endStageInteraction;
 
     stage.ondblclick = (e) => {
       const p = pt(e, stage);
       for (let i = items.length - 1; i >= 0; i--) {
         const it = items[i];
-        if (p.x >= it.x && p.x <= it.x + it.w && p.y >= it.y && p.y <= it.y + it.h) {
+        if (pointInItem(it, p)) {
           items.splice(i, 1);
           render();
           toast('Removed.');
@@ -593,7 +913,9 @@
         toast('Add something first.');
         return;
       }
+      render(false);
       frames.push(stage.toDataURL('image/png'));
+      render();
       renderTimeline();
       toast('Frame ' + frames.length + ' captured.');
     }
@@ -629,32 +951,14 @@
       a.href = frames[frames.length - 1];
       a.download = 'advent-frame.png';
       a.click();
-      toast('Exported latest frame as PNG. GIF encoder returns next.');
+      toast('Latest frame exported as PNG. Full animated GIF encoder coming next.');
     }
 
-    async function fetchRandomWikimediaImage() {
-      const randomResponse = await fetch(COMMONS_RANDOM_URL);
-      if (!randomResponse.ok) throw new Error('Wikimedia random image lookup failed.');
-
-      const randomText = await randomResponse.text();
-      const titleMatch = randomText.match(/Location:\s*https:\/\/commons\.wikimedia\.org\/wiki\/([^<\s]+)/);
-      if (!titleMatch || !titleMatch[1]) throw new Error('No Wikimedia file title found.');
-
-      const title = titleMatch[1].replace('<br>', '');
-      const apiUrl = `${COMMONS_API_URL}?action=query&titles=${encodeURIComponent(title)}&prop=pageimages&format=json&pithumbsize=500&origin=*`;
-      const imageResponse = await fetch(apiUrl);
-      if (!imageResponse.ok) throw new Error('Wikimedia image details failed.');
-
-      const result = await imageResponse.json();
-      const key = Object.keys(result.query.pages)[0];
-      const page = result.query.pages[key];
-      if (!page || !page.thumbnail || !page.thumbnail.source) throw new Error('No Wikimedia thumbnail found.');
-
-      return {
-        title: title.replace(/^File:/, '').replace(/_/g, ' '),
-        imageUrl: page.thumbnail.source,
-        objectUrl: `https://commons.wikimedia.org/wiki/${encodeURI(title)}`
-      };
+    function clearBackgroundImage() {
+      stageBackgroundImage = null;
+      document.getElementById('stageImage').value = '';
+      render();
+      toast('Background image removed.');
     }
 
     function ensureCanvasSafeImage(img) {
@@ -682,60 +986,127 @@
       });
     }
 
-    function renderCommonsMetadata(meta, artwork) {
-      meta.textContent = '';
-
-      const title = document.createElement('strong');
-      title.textContent = artwork.title;
-      const link = document.createElement('a');
-      link.href = artwork.objectUrl;
-      link.target = '_blank';
-      link.rel = 'noopener';
-      link.style.color = '#f0c93a';
-      link.textContent = 'View on Wikimedia Commons';
-
-      meta.append(title, document.createElement('br'), link);
-    }
-
     function addImageToBin(img) {
       const canvas = document.createElement('canvas');
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
       canvas.getContext('2d').drawImage(img, 0, 0);
-      bin.push({ canvas, w: canvas.width, h: canvas.height });
-      renderBin();
+      addCanvasToBin(canvas);
     }
 
-    async function addRandomWikimediaImageToBin() {
-      const loadButton = document.getElementById('commonsLoad');
+    async function openWikimediaCut(artwork) {
       const meta = document.getElementById('commonsMeta');
-      const preview = document.getElementById('commonsPreview');
-
-      loadButton.disabled = true;
-      meta.textContent = 'Fetching a featured picture from Wikimedia Commons…';
-      preview.textContent = 'Loading Wikimedia image…';
+      meta.textContent = 'Loading ' + artwork.title + ' for the cutting table.';
 
       try {
-        const artwork = await fetchRandomWikimediaImage();
         const image = await loadArtworkImage(artwork.imageUrl);
-        addImageToBin(image);
-
-        const previewImage = document.createElement('img');
-        previewImage.src = artwork.imageUrl;
-        previewImage.alt = artwork.title;
-        preview.innerHTML = '';
-        preview.appendChild(previewImage);
-        renderCommonsMetadata(meta, artwork);
-        toast('Wikimedia image added to the bin.');
+        openCut({ type: 'image', image, title: artwork.title });
+        meta.textContent = artwork.title + ' is ready to cut.';
       } catch (error) {
-        console.error('Error adding random Wikimedia image:', error);
-        preview.textContent = 'Could not load Wikimedia image. Try again.';
-        meta.textContent = 'The Wikimedia image could not be loaded. Try another random image.';
+        console.error('Error loading Wikimedia image:', error);
+        meta.textContent = 'That image could not reach the cutting table. Try another result.';
         toast('Wikimedia image failed to load.');
-      } finally {
-        loadButton.disabled = false;
       }
     }
+
+    function renderCommonsResults(artworks) {
+      const results = document.getElementById('commonsResults');
+      results.innerHTML = '';
+
+      artworks.forEach((artwork) => {
+        const button = document.createElement('button');
+        button.className = 'commonsResult';
+        button.title = artwork.title;
+        const img = document.createElement('img');
+        img.loading = 'lazy';
+        img.src = artwork.thumbUrl;
+        img.alt = artwork.title;
+        const label = document.createElement('span');
+        label.textContent = artwork.title.replace(/^File:/, '');
+        button.append(img, label);
+        button.onclick = () => openWikimediaCut(artwork);
+        results.appendChild(button);
+      });
+
+      if (!artworks.length) results.innerHTML = '<div class="emptyGrid">No image results. Try a stranger spell.</div>';
+    }
+
+    async function searchWikimedia() {
+      const query = document.getElementById('commonsQuery').value.trim();
+      const button = document.getElementById('commonsSearch');
+      const meta = document.getElementById('commonsMeta');
+      if (!query) {
+        toast('Type a Wikimedia search first.');
+        return;
+      }
+
+      button.disabled = true;
+      meta.textContent = 'Searching Wikimedia Commons for "' + query + '".';
+
+      try {
+        const params = new URLSearchParams({
+          action: 'query',
+          format: 'json',
+          origin: '*',
+          generator: 'search',
+          gsrsearch: query,
+          gsrnamespace: '6',
+          gsrlimit: '12',
+          prop: 'imageinfo',
+          iiprop: 'url',
+          iiurlwidth: '260'
+        });
+        const response = await fetch(COMMONS_API_URL + '?' + params);
+        if (!response.ok) throw new Error('Wikimedia search failed.');
+        const data = await response.json();
+        const pages = Object.values((data.query && data.query.pages) || {});
+        const artworks = pages.map((page) => {
+          const image = page.imageinfo && page.imageinfo[0];
+          if (!image || !image.url) return null;
+          return {
+            title: page.title,
+            thumbUrl: image.thumburl || image.url,
+            imageUrl: image.url
+          };
+        }).filter(Boolean);
+        renderCommonsResults(artworks);
+        meta.textContent = artworks.length + ' image' + (artworks.length === 1 ? '' : 's') + ' ready to cut.';
+      } catch (error) {
+        console.error('Error searching Wikimedia Commons:', error);
+        renderCommonsResults([]);
+        meta.textContent = 'Wikimedia search missed the table. Try again.';
+        toast('Wikimedia search failed.');
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    document.getElementById('stageColor').oninput = (e) => {
+      stageBackgroundColor = e.target.value;
+      render();
+    };
+
+    document.getElementById('gridToggle').onchange = (e) => {
+      showGrid = e.target.checked;
+      render();
+    };
+
+    document.getElementById('stageImage').onchange = (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const img = new Image();
+      img.onload = () => {
+        stageBackgroundImage = img;
+        render();
+        toast('Background image loaded.');
+      };
+      img.onerror = () => toast('Background image failed to load.');
+      img.src = URL.createObjectURL(file);
+    };
+
+    document.getElementById('commonsQuery').onkeydown = (e) => {
+      if (e.key === 'Enter') searchWikimedia();
+    };
 
     renderPapers();
     renderBin();
