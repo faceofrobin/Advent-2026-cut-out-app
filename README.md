@@ -21,7 +21,7 @@ That system is half release trail and half lab notebook. It keeps old tables int
 3. Tap a cutout in the bin to place it on the stage.
 4. Drag it into place, pull corner handles to scale it, and turn the rotation handle for a new pose.
 5. Capture frames as the pose changes across the timeline.
-6. Export the current placeholder PNG while the full animated GIF encoder is still fermenting.
+6. Export the captured frame sequence as an animated GIF.
 
 ## Cutting System
 
