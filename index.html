@@ -119,6 +119,10 @@
       gap: 8px;
     }
 
+    .paperPalette {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
     .paper,
     .cut {
       min-height: 62px;
@@ -131,6 +135,14 @@
       font-weight: 800;
       text-shadow: 0 1px 3px #000;
       cursor: pointer;
+    }
+
+    .paperPalette .paper {
+      min-height: 34px;
+      aspect-ratio: 1;
+      align-items: center;
+      padding: 0;
+      border-radius: 8px;
     }
 
     .paper:hover,
@@ -387,7 +399,7 @@
       <p class="hint">Choose paper, draw around a shape, cut it out, then tap the cutout to place it on the stage.</p>
 
       <h3>Papers</h3>
-      <div id="papers" class="papers"></div>
+      <div id="papers" class="papers paperPalette"></div>
 
       <h3>Stage</h3>
       <div class="stageTools">
@@ -405,6 +417,7 @@
         <div class="commonsSearch">
           <input id="commonsQuery" class="field" type="search" placeholder="paper moon" aria-label="Search Wikimedia Commons">
           <button id="commonsSearch" class="btn" onclick="searchWikimedia()">Search</button>
+          <button id="commonsRandom" class="btn dark" onclick="randomWikimedia()">Random</button>
         </div>
         <div id="commonsResults" class="commonsGrid">
           <div class="emptyGrid">Search results become cutout sources here.</div>
@@ -504,7 +517,8 @@
         const b = document.createElement('button');
         b.className = 'paper';
         b.style.background = p[1];
-        b.innerHTML = '<span>' + p[0] + '</span>';
+        b.title = p[0];
+        b.setAttribute('aria-label', p[0] + ' paper');
         b.onclick = () => openCut({ type: 'paper', color: p[1] });
         document.getElementById('papers').appendChild(b);
       });
@@ -1091,7 +1105,7 @@
       const results = document.getElementById('commonsResults');
       results.innerHTML = '';
 
-      artworks.forEach((artwork) => {
+      artworks.slice(0, 4).forEach((artwork) => {
         const button = document.createElement('button');
         button.className = 'commonsResult';
         button.title = artwork.title;
@@ -1107,6 +1121,18 @@
       });
 
       if (!artworks.length) results.innerHTML = '<div class="emptyGrid">No image results. Try a stranger spell.</div>';
+    }
+
+    function commonsPagesToArtworks(pages) {
+      return Object.values(pages || {}).map((page) => {
+        const image = page.imageinfo && page.imageinfo[0];
+        if (!image || !image.url || (image.mime && !image.mime.startsWith('image/'))) return null;
+        return {
+          title: page.title,
+          thumbUrl: image.thumburl || image.url,
+          imageUrl: image.url
+        };
+      }).filter(Boolean).slice(0, 4);
     }
 
     async function searchWikimedia() {
@@ -1129,24 +1155,15 @@
           generator: 'search',
           gsrsearch: query,
           gsrnamespace: '6',
-          gsrlimit: '12',
+          gsrlimit: '4',
           prop: 'imageinfo',
-          iiprop: 'url',
+          iiprop: 'url|mime',
           iiurlwidth: '260'
         });
         const response = await fetch(COMMONS_API_URL + '?' + params);
         if (!response.ok) throw new Error('Wikimedia search failed.');
         const data = await response.json();
-        const pages = Object.values((data.query && data.query.pages) || {});
-        const artworks = pages.map((page) => {
-          const image = page.imageinfo && page.imageinfo[0];
-          if (!image || !image.url) return null;
-          return {
-            title: page.title,
-            thumbUrl: image.thumburl || image.url,
-            imageUrl: image.url
-          };
-        }).filter(Boolean);
+        const artworks = commonsPagesToArtworks(data.query && data.query.pages);
         renderCommonsResults(artworks);
         meta.textContent = artworks.length + ' image' + (artworks.length === 1 ? '' : 's') + ' ready to cut.';
       } catch (error) {
@@ -1154,6 +1171,41 @@
         renderCommonsResults([]);
         meta.textContent = 'Wikimedia search missed the table. Try again.';
         toast('Wikimedia search failed.');
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    async function randomWikimedia() {
+      const button = document.getElementById('commonsRandom');
+      const meta = document.getElementById('commonsMeta');
+
+      button.disabled = true;
+      meta.textContent = 'Finding random Wikimedia Commons images.';
+
+      try {
+        const params = new URLSearchParams({
+          action: 'query',
+          format: 'json',
+          origin: '*',
+          generator: 'random',
+          grnnamespace: '6',
+          grnlimit: '10',
+          prop: 'imageinfo',
+          iiprop: 'url|mime',
+          iiurlwidth: '260'
+        });
+        const response = await fetch(COMMONS_API_URL + '?' + params);
+        if (!response.ok) throw new Error('Random Wikimedia request failed.');
+        const data = await response.json();
+        const artworks = commonsPagesToArtworks(data.query && data.query.pages);
+        renderCommonsResults(artworks);
+        meta.textContent = artworks.length + ' random image' + (artworks.length === 1 ? '' : 's') + ' ready to cut.';
+      } catch (error) {
+        console.error('Error loading random Wikimedia images:', error);
+        renderCommonsResults([]);
+        meta.textContent = 'Random Wikimedia images missed the table. Try again.';
+        toast('Random Wikimedia failed.');
       } finally {
         button.disabled = false;
       }
